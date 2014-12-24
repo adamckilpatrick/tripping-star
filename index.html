@@ -1,0 +1,261 @@
+<html>
+	<head>
+		<title>My first Three.js app</title>
+		<style>
+			body { margin: 0; }
+			canvas { width: 100%; height: 100% }
+		</style>
+	</head>
+	<body>
+		<script src="three.js"></script>
+		<script src="fractLogic.js"></script>
+		<script src="ga.js"></script>
+		<script src="perlin.js"></script>
+		<script>
+			//Initialize population:
+			var population=[];
+			var scores=[];
+			var popSize=16;
+			var initMutates=30;
+			var genNum=0;
+			for(var i=0; i<popSize; i++)
+			{
+				var newGenome= new genome();
+				for(var k=0; k<initMutates; k++)
+				{
+					mutate(newGenome);
+				}
+				population.push(newGenome);
+				scores.push(3);
+			}			
+			
+			
+			//This chunk handles keyboard interaction and GA calls
+			function nextGenome() {
+				var index=(population.indexOf(genome1)+1)%popSize;
+				genome1=population[index];
+				initFractStruct();
+				initRender();
+				console.log(genome1.ruleSet[0][1]);
+			}
+			function upVote() {
+				var index=population.indexOf(genome1);
+				if(scores[index]<5)
+				{
+					scores[index]++;
+				}
+			}
+			function downVote() {
+				var index=population.indexOf(genome1);
+				if(scores[index]>1)
+				{
+					scores[index]--;
+				}
+			}
+			function rePopulate() {
+				var newPop=breed(population,scores);
+				population=newPop;
+				for(var i=0; i<population.length; i++)
+				{
+					scores[i]=3;
+				}
+				genome1=population[0];
+				initFractStruct();
+				initRender();
+				console.log(genome1.ruleSet[0][1]);
+				genNum++;
+			}
+			document.addEventListener("keydown", onDocumentKeyDown, false); 
+			function onDocumentKeyDown(event){
+				var keycode = event.which;
+				//right arrow -> next genome in the pop
+				if(keycode==39)
+				{
+					nextGenome();
+				}
+				//up arrow -> upvote
+				if(keycode==38)
+				{
+					upVote();
+				}
+				//down arrow -> downvote
+				if(keycode==40)
+				{
+					downVote();
+				}
+				//down arrow -> downvote
+				if(keycode==32||keycode==32)
+				{
+					rePopulate();
+				}
+			}
+			
+			//var genome1=new genome();
+			var genome1=population[0];
+			//var ruleSet=[["0","01[0[01]]00"],["1","11"]];
+			//genome1.ruleSet=ruleSet;
+			console.log(genome1.ruleSet[0][1]);
+			
+			
+			var fract,fractLines;
+			function initFractStruct(){
+				fract = new fractSystem(genome1.ruleSet,"0",[]);
+				for(var i=0; i<genome1.numIter; i++)
+				{
+					fract.grow();
+				}
+				fractLines = fractVerts(arrayifyFract(fract.curStruct),startPos,90);
+			}
+			
+
+			
+		var count=0;
+		var startPos={"x":0,"y":0};
+		initFractStruct();
+		function fractVerts(fractStruct,posStart,angleStart) {
+			var ge=genome1;
+			//var color={"r":240-noise(tick/100,-13)*200,"g":240-noise(tick/100,-14)*200,"b":240-noise(tick/100,-15)*200};
+			var mag=ge.size+(noise.perlin2(count*ge.sizeSpeed,0)*ge.sizeRange);
+			var curPos={"x":posStart.x,"y":posStart.y};
+			var curAng=angleStart;
+			var outVerts=[];
+			var angleDel=20;
+			
+			for(var i=0; i<fractStruct.length; i++)
+			{
+				//colCount++;
+				if(typeof(fractStruct[i])!="string")
+				{
+					if(curPos.x==startPos.x&&curPos.y==startPos.y)
+					{
+						var subVerts = fractVerts(fractStruct[i],curPos,curAng+angleDel);
+						for(var j=0; j<subVerts.length; j++)
+						{
+							outVerts.push(subVerts[j]);
+						}
+						curAng-=angleDel;
+					}
+					else
+					{
+						var subVerts=fractVerts(fractStruct[i],curPos,curAng+angleDel+(noise.perlin2(count*ge.spreadSpeed,-3))*ge.spreadRange);
+						for(var j=0; j<subVerts.length; j++)
+						{
+							outVerts.push(subVerts[j]);
+						}
+						curAng-=angleDel+(noise.perlin2(count*ge.spreadSpeed,-3))*ge.spreadRange;
+					}
+				}
+				else
+				{
+					if(fractStruct[i]=="1")
+					{
+						var newX=curPos.x+mag*Math.cos(curAng/180*Math.PI);
+						var newY=curPos.y+mag*Math.sin(curAng/180*Math.PI);
+						outVerts.push({"x1":curPos.x,"y1":curPos.y,"x2":newX,"y2":newY});
+						curPos.x=newX;
+						curPos.y=newY;
+					}
+					if(fractStruct[i]=="0")
+					{
+						var newX=curPos.x+mag*Math.cos(curAng/180*Math.PI);
+						var newY=curPos.y+mag*Math.sin(curAng/180*Math.PI);
+						outVerts.push({"x1":curPos.x,"y1":curPos.y,"x2":newX,"y2":newY});
+						curPos.x=newX;
+						curPos.y=newY;
+					}
+				}
+			}
+			return outVerts;
+		}
+			
+			
+			
+			var scene = new THREE.Scene();
+			var camera = new THREE.PerspectiveCamera( 75, window.innerWidth/window.innerHeight, 0.1, 1000 );
+
+			var renderer = new THREE.WebGLRenderer();
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			document.body.appendChild( renderer.domElement );
+
+			var material2 = new THREE.PointCloudMaterial({
+				size:.4,vertexColors: THREE.VertexColors,opacity:.3,transparent:true,blending:THREE.AdditiveBlending,map:THREE.ImageUtils.loadTexture("./particle.png")
+			});
+
+			var geometry,pcOrig,pc;
+			
+			function initRender(){
+				scene = new THREE.Scene();
+				geometry = new THREE.Geometry();
+				for(var i=0; i<fractLines.length; i++)
+				{
+					var segColor = new THREE.Color(0,0,0);
+					segColor.setHSL(i/fractLines.length,.8,.65);
+					//var xDel=fractLines[i].x2-fractLines[i].x1;
+					//var yDel=fractLines[i].y2-fractLines[i].y1;
+					for(var j=0;j<5; j++)
+					{
+						//geometry.vertices.push(new THREE.Vector3(fractLines[i].x1+j/5*xDel,fractLines[i].y1+j/5*yDel));
+						geometry.colors.push(segColor);
+					}
+				}
+
+				//Add copies of the original branch to create the spokes
+				pcOrig = new THREE.PointCloud(geometry,material2);
+				pc=[pcOrig];
+				
+				scene.add(pc[0]);
+				for(var i=1; i<genome1.numSpokes; i++)
+				{
+					pc.push(new THREE.PointCloud(geometry,material2));
+					scene.add(pc[i]);
+				}
+			}
+			initRender();
+			camera.position.z = 15;
+			//count=0;
+			var render = function () {
+				requestAnimationFrame( render );
+				pc[0].geometry.vertices=[];
+				//fractLines = fractVerts(arrayifyFract(fract.curStruct),startPos,90+noise.perlin2(count*genome1.rotSpeed,-1)*180);
+				fractLines = fractVerts(arrayifyFract(fract.curStruct),startPos,90);
+				count++;
+				
+				
+				for(var i=0; i<fractLines.length; i++)
+				{
+					
+					var xDel=fractLines[i].x2-fractLines[i].x1;
+					var yDel=fractLines[i].y2-fractLines[i].y1;
+					for(var j=0;j<5; j++)
+					{
+						pc[0].geometry.vertices.push(new THREE.Vector3(
+						fractLines[i].x1+j/5*xDel+j/5*yDel*noise.perlin2(j,count*genome1.noiseSpeed)*genome1.noiseMag,
+						fractLines[i].y1+j/5*yDel+j/5*xDel*noise.perlin2(j,count*genome1.noiseSpeed)*genome1.noiseMag),
+						i*5+j);
+						
+						pc[0].geometry.colors[i*5+j].setHSL(noise.perlin2((i*5+j)*genome1.lColSpeed,count*genome1.cColSpeed),.92,.6);
+						//geometry.colors.push(segColor);
+					}
+				}
+				pc[0].rotation.z=noise.perlin2(count*genome1.rotSpeed,-1)*Math.PI;
+				//pc[0].rotation.z+=Math.PI;
+				pc[0].geometry.verticesNeedUpdate=true;
+				pc[0].geometry.colorsNeedUpdate=true;
+
+
+				
+				for(var i=1; i<genome1.numSpokes; i++)
+				{
+					pc[i].geometry.vertices=pc[0].geometry.vertices;
+					pc[i].rotation.z=pc[0].rotation.z+i*360/genome1.numSpokes*Math.PI/180;
+					pc[i].geometry.verticesNeedUpdate=true;
+					pc[i].geometry.colorsNeedUpdate=true;
+				}
+
+				renderer.render(scene, camera);
+			};
+
+			render();
+		</script>
+	</body>
+</html>
